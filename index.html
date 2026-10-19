@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Python Quest</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐍</text></svg>">
+<script src="https://cdn.tailwindcss.com"></script>
+<style type="text/tailwindcss">
+  @layer components {
+    .card { @apply bg-[#151a26] border border-white/10 rounded-xl p-5 transition hover:border-white/20; }
+    .btn { @apply px-4 py-2 rounded-lg border border-white/15 bg-white/5 transition hover:bg-white/10 hover:border-[#ffd43b]/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ffd43b] disabled:opacity-40 disabled:pointer-events-none; }
+    .btn-main { @apply bg-[#ffd43b] text-[#0d1117] font-semibold border-transparent hover:bg-[#ffe066] hover:border-transparent; }
+    .field { @apply w-full px-3 py-2 rounded-lg bg-[#0d1117] border border-white/15 transition focus:outline-none focus:border-[#ffd43b]; }
+    .code { @apply font-mono text-sm bg-[#0d1117] border border-white/10 rounded-lg p-3 whitespace-pre-wrap text-[#9ecbff]; }
+  }
+</style>
+<style>
+  body { background:#0d1117; color:#e6edf3; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .opt { text-align:left; width:100%; padding:.65rem .9rem; border-radius:.6rem; border:1px solid rgba(255,255,255,.15); background:rgba(255,255,255,.04); transition:.15s; }
+  .opt:hover:not(:disabled) { background:rgba(255,255,255,.09); border-color:#ffd43b99; transform:translateX(2px); }
+  .opt:focus-visible { outline:2px solid #ffd43b; }
+  .opt.ok { background:#1b3a2a; border-color:#3fb950; }
+  .opt.bad { background:#3d1d22; border-color:#f85149; }
+  .chip { display:block; max-width:100%; text-align:left; font:13px ui-monospace,SFMono-Regular,Menlo,monospace; padding:.4rem .65rem; border-radius:.5rem; border:1px solid rgba(255,255,255,.15); background:rgba(255,255,255,.05); color:#9ecbff; cursor:grab; transition:.15s; white-space:pre-wrap; word-break:break-word; }
+  .chip:hover:not(:disabled) { border-color:#ffd43b99; background:rgba(255,255,255,.1); }
+  .chip:disabled { cursor:default; }
+  .slot { border:1px dashed rgba(255,255,255,.2); border-radius:.6rem; padding:2px; transition:.15s; }
+  .slot .chip { width:100%; }
+  .ln { display:flex; gap:.75rem; width:100%; text-align:left; padding:.35rem .75rem; font:13px ui-monospace,SFMono-Regular,Menlo,monospace; color:#9ecbff; white-space:pre-wrap; transition:.15s; }
+  .ln:hover:not(:disabled) { background:rgba(255,255,255,.08); }
+  .ln:disabled { cursor:default; }
+  .ln .n { color:#6b7689; width:1rem; text-align:right; flex:none; }
+  .ln.ok { background:#1b3a2a; } .ln.bad { background:#3d1d22; }
+  .seg { fill:none; stroke-width:5; stroke-linecap:round; }
+  .node .base { fill:#151a26; stroke:#2f384d; stroke-width:3; transition:.3s; }
+  .node.done .base { fill:#3776ab; stroke:#3776ab; }
+  .node.cur .base { stroke:#ffd43b; }
+  .node text { text-anchor:middle; fill:#8b97ad; font-size:14px; }
+  .node .num { fill:#e6edf3; font-weight:700; font-size:17px; dominant-baseline:central; }
+  .node.cur .lbl, .node.done .lbl { fill:#e6edf3; }
+  .pulse { fill:none; stroke:#ffd43b; stroke-width:2; transform-box:fill-box; transform-origin:center; animation:pulse 1.8s ease-out infinite; }
+  .node:not(.cur) .pulse { display:none; }
+  @keyframes pulse { from { transform:scale(1); opacity:.9; } to { transform:scale(1.9); opacity:0; } }
+  @media (prefers-reduced-motion: reduce) { .pulse { animation:none; } }
+</style>
+</head>
+<body class="min-h-screen antialiased">
+<main class="max-w-5xl mx-auto px-4 py-8">
+
+  <!-- СТАРТ -->
+  <section id="s-start" class="max-w-xl mx-auto pt-6">
+    <h1 class="text-3xl font-bold">Python-змійка</h1>
+    <p class="text-slate-400 mt-2">Пройди сім рівнів: тести, збирання коду, дописування й пошук помилок. Змійка повзе далі, коли ти завершуєш рівень.</p>
+    <form id="form" class="card mt-6 space-y-4" autocomplete="off">
+      <label class="block"><span class="text-sm text-slate-400">Ім’я</span>
+        <input id="fn" class="field mt-1" maxlength="30"></label>
+      <label class="block"><span class="text-sm text-slate-400">Прізвище</span>
+        <input id="ln" class="field mt-1" maxlength="30"></label>
+      <label class="block"><span class="text-sm text-slate-400">Клас</span>
+        <input id="cl" class="field mt-1" maxlength="6" placeholder="8-А"></label>
+      <pre id="preview" class="code"></pre>
+      <p id="err" class="text-sm text-[#f85149] hidden">Заповни ім’я, прізвище та клас, щоб почати.</p>
+      <button class="btn btn-main w-full" type="submit">Почати гру</button>
+    </form>
+  </section>
+
+  <!-- КАРТА -->
+  <section id="s-map" class="hidden">
+    <div class="flex flex-wrap items-end justify-between gap-2 mb-4">
+      <div>
+        <h2 class="text-2xl font-bold">Карта рівнів</h2>
+        <p id="who" class="text-slate-400 text-sm"></p>
+      </div>
+      <p id="prog" class="text-sm text-slate-400"></p>
+    </div>
+    <div id="wrap" class="card p-2 overflow-x-auto">
+      <svg id="map" viewBox="0 0 1000 440" class="min-w-[820px] w-full" role="img" aria-label="Карта рівнів зі змійкою"></svg>
+    </div>
+    <div class="mt-4 flex justify-center">
+      <button id="go" class="btn btn-main px-6 py-3"></button>
+    </div>
+  </section>
+
+  <!-- ЗВІТ -->
+  <section id="s-report" class="hidden max-w-2xl mx-auto"></section>
+</main>
+
+<!-- ВІКНО ЗАВДАНЬ -->
+<div id="modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+  <div id="mbox" class="card w-full max-w-xl max-h-[90vh] overflow-y-auto hover:border-white/10"></div>
+</div>
+
+<script>
+/* ============ ЗАВДАННЯ ============
+   Перший варіант відповіді — ПРАВИЛЬНИЙ (при показі варіанти перемішуються автоматично).
+   Щоб додати питання — скопіюйте рядок {q:..., o:[...], e:...} у потрібний рівень. */
+const TEACHER_EMAIL = 'mrochko@bor-school-6.ukr.education';
+const LEVELS = [
+ {t:'Основи', q:[
+  {q:'Що виведе ця програма?', c:'print("Привіт" + "!")', o:['Привіт!','"Привіт" + "!"','Привіт !','Помилка'], e:'Знак + склеює два рядки в один: Привіт!'},
+  {q:'Що виведе ця програма?', c:'print("2 + 3")', o:['2 + 3','5','"2 + 3"','Помилка'], e:'Усе в лапках — це текст, тому Python виводить його як є. Без лапок print(2 + 3) дав би 5.'},
+  {q:'Що робить цей рядок?', c:'name = input("Як тебе звати? ")', o:['Показує запитання, чекає на введення й зберігає відповідь у name','Просто виводить слово input','Створює вікно із запитанням','Видаляє змінну name'], e:'input() показує підказку, чекає на Enter і повертає те, що ввів користувач.'},
+  {q:'Користувач ввів 7. Що виведе програма?', c:'x = input()\nprint(x + x)', o:['77','14','7','Помилка'], e:'input() завжди повертає рядок, тому "7" + "7" склеюється в 77.'},
+  {q:'Яке ім’я змінної записане правильно?', o:['my_name','2name','my-name','my name'], e:'Ім’я не може починатися з цифри, містити пробіли чи дефіс. Підкреслення _ дозволене.'},
+  {q:'Що виведе програма?', c:'a = 5\nb = a\na = 10\nprint(b)', o:['5','10','15','Помилка'], e:'b отримала значення 5 у момент присвоєння. Пізніша зміна a на b не впливає.'}]},
+ {t:'Типи даних', q:[
+  {q:'Якого типу значення 3.14?', o:['float','int','str','bool'], e:'float — дробове число. int — ціле, str — текст, bool — True або False.'},
+  {q:'Як отримати від користувача ціле число?', o:['n = int(input())','n = input(int)','n = str(input())','n = number(input())'], e:'input() дає рядок, а int() перетворює його на ціле число.'},
+  {q:'Що виведе програма?', c:'print(type("5"))', o:["<class 'str'>","<class 'int'>",'5','Помилка'], e:'"5" у лапках — це текст, тобто str.'}]},
+ {t:'Tkinter: вікно', q:[
+  {q:'Як підключити бібліотеку для створення вікон?', o:['import tkinter','include tkinter','using tkinter','get tkinter'], e:'Бібліотеки в Python підключають командою import.'},
+  {q:'Що робить рядок у кінці програми?', c:'root.mainloop()', o:['Запускає вікно й тримає його відкритим, поки користувач не закриє','Закриває вікно','Створює нове вікно','Повторює програму 10 разів'], e:'mainloop() запускає цикл очікування подій: натискань, введення, закриття вікна.'}]},
+ {t:'Tkinter: віджети', q:[
+  {q:'Який віджет показує у вікні напис?', o:['Label','Button','Entry','Frame'], e:'Label — напис, Button — кнопка, Entry — поле введення.'},
+  {q:'Який віджет дає користувачу ввести текст?', o:['Entry','Label','Button','Frame'], e:'Entry — однорядкове поле введення.'},
+  {q:'Що означає command=hello?', c:'btn = Button(root, text="OK", command=hello)', o:['Після натискання кнопки виконається функція hello','Кнопка перейменується на hello','Кнопка виведе слово hello','Створиться змінна hello'], e:'command вказує функцію, яку треба викликати при натисканні. Дужки після hello не пишемо.'}]},
+ {t:'Збери код', q:[
+  {k:'drag', q:'Збери програму, яка каже, скільки років буде через рік.', f:[`age = int(input("Скільки тобі років? "))`, `next_year = age + 1`, `text = "Наступного року тобі буде " + str(next_year)`, `print(text)`], e:'Спочатку отримуємо число, потім обчислюємо, потім збираємо текст і виводимо. Без str() число не склеїться з рядком.'},
+  {k:'drag', q:'Збери програму з вікном Tkinter.', f:[`import tkinter`, `root = tkinter.Tk()`, `label = tkinter.Label(root, text="Привіт!")`, `label.pack()`, `root.mainloop()`], e:'Підключаємо бібліотеку, створюємо вікно, додаємо напис, розміщуємо його й запускаємо mainloop().'}]},
+ {t:'Допиши код', q:[
+  {k:'type', q:'Допиши рядок, щоб вивести змінну name на екран.', c:`name = "Оля"\n___`, re:/^print\(name\)$/, a:'print(name)', e:'Щоб вивести значення змінної, пишемо її ім’я в дужках без лапок.'},
+  {k:'type', q:'Допиши праву частину: введи вік і зроби його цілим числом.', c:`age = ___\nprint(age + 1)`, re:/^int\(input\(.*\)\)$/, a:'int(input())', e:'input() повертає рядок, а int() перетворює його на число, тому age + 1 працює.'},
+  {k:'type', q:'Допиши рядок: створи у вікні root напис із будь-яким текстом.', c:`import tkinter\nroot = tkinter.Tk()\nlabel = ___\nlabel.pack()\nroot.mainloop()`, re:/^tkinter\.Label\(root,text=(".+"|'.+')\)$/, a:'tkinter.Label(root, text="Привіт")', e:'Label створює напис. Першим аргументом іде вікно root, далі text з текстом.'}]},
+ {t:'Знайди помилку', q:[
+  {k:'bug', q:'Програма має привітати користувача, але падає з помилкою.', c:[`name = input("Ім'я: ")`, `print("Привіт, " + nam)`], b:1, f:[`print("Привіт, " + name)`, `print("Привіт, " + "name")`, `Print("Привіт, " + name)`], e:'У другому рядку змінну названо nam, а створено name. Імена мають збігатися.'},
+  {k:'bug', q:'Програма має додати 1 до віку, але виникає помилка.', c:[`age = input("Вік: ")`, `next_year = age + 1`, `print(next_year)`], b:1, f:[`next_year = int(age) + 1`, `next_year = age + "1"`, `next_year = str(age) + 1`], e:'age — рядок, а до рядка не можна додати число. Спершу перетворюємо його через int().'},
+  {k:'bug', q:'Вікно з кнопкою не з’являється. Знайди помилку.', c:[`import tkinter`, `root = tkinter.Tk()`, `btn = tkinter.Button(root, text="OK")`, `btn.pack()`, `root.mainloop`], b:4, f:[`root.mainloop()`, `root.mainloop(0)`, `root.main()`], e:'Без дужок Python лише називає функцію, але не викликає її, тому вікно не відкривається.'}]}
+];
+
+/* ============ СТАН ============ */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const st = {fn:'', ln:'', cl:'', lvl:0, qi:0, res:[], busy:false, finished:false};
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const show = id => ['s-start','s-map','s-report'].forEach(s => $('#'+s).classList.toggle('hidden', s !== id));
+
+/* ============ СТАРТ ============ */
+function preview() {
+  const full = [$('#fn').value.trim(), $('#ln').value.trim()].filter(Boolean).join(' ') || '...';
+  $('#preview').textContent = `name = "${full}"\nprint("Привіт,", name)`;
+}
+['fn','ln','cl'].forEach(i => $('#'+i).addEventListener('input', preview));
+preview();
+$('#form').addEventListener('submit', e => {
+  e.preventDefault();
+  const v = i => $('#'+i).value.trim();
+  if (!v('fn') || !v('ln') || !v('cl')) { $('#err').classList.remove('hidden'); return; }
+  Object.assign(st, {fn:v('fn'), ln:v('ln'), cl:v('cl'), lvl:0, qi:0, res:LEVELS.map(() => []), finished:false});
+  $('#who').textContent = `${st.ln} ${st.fn} · ${st.cl}`;
+  show('s-map'); buildMap(); updateMap(true);
+});
+
+/* ============ КАРТА ТА ЗМІЙКА ============ */
+const N = LEVELS.length + 1, P = Array.from({length:N}, (_, i) => [70 + i*125, i%2 ? 140 : 320]);
+const S = 12, GAP = 13;
+let segs = [], cum = [0], D = 0, circles = [], head;
+const mix = t => { const a=[55,118,171], b=[255,212,59]; return `rgb(${a.map((v,k) => Math.round(v+(b[k]-v)*t)).join()})`; };
+
+function buildMap() {
+  let h = '';
+  for (let i = 0; i < N-1; i++) {
+    const a = P[i], b = P[i+1], m = (a[0]+b[0])/2;
+    h += `<path class="seg" id="seg${i}" d="M${a[0]} ${a[1]} C${m} ${a[1]} ${m} ${b[1]} ${b[0]} ${b[1]}"/>`;
+  }
+  P.forEach((p, i) => {
+    const fin = i === N-1;
+    h += `<g class="node" id="n${i}"><circle class="pulse" cx="${p[0]}" cy="${p[1]}" r="22"/>
+      <circle class="base" cx="${p[0]}" cy="${p[1]}" r="22"/>
+      <text class="num" x="${p[0]}" y="${p[1]}">${fin ? '🏁' : i+1}</text>
+      <text class="lbl" x="${p[0]}" y="${p[1]+46}">${fin ? 'Фініш' : esc(LEVELS[i].t)}</text></g>`;
+  });
+  h += '<g id="snake"></g>';
+  $('#map').innerHTML = h;
+  segs = [...Array(N-1).keys()].map(i => $('#seg'+i));
+  cum = [0]; segs.forEach(s => cum.push(cum[cum.length-1] + s.getTotalLength()));
+  let sn = '';
+  for (let i = S; i >= 1; i--) sn += `<circle r="${(5 + (S-i)*.35).toFixed(1)}" fill="${mix(1 - i/(S+1))}"/>`;
+  sn += `<g id="head"><circle r="12" fill="#ffd43b"/><circle cx="4" cy="-5" r="2.6" fill="#0d1117"/><circle cx="4" cy="5" r="2.6" fill="#0d1117"/>
+         <path d="M11 0h8m0 0l4-3m-4 3l4 3" stroke="#f85149" stroke-width="1.8" fill="none" stroke-linecap="round"/></g>`;
+  $('#snake').innerHTML = sn;
+  circles = [...$('#snake').querySelectorAll('circle')].slice(0, S);
+  head = $('#head');
+  D = cum[st.lvl]; place(D);
+}
+function pt(d) {
+  d = Math.max(0, Math.min(d, cum[cum.length-1]));
+  let k = 0; while (k < segs.length-1 && d > cum[k+1]) k++;
+  return segs[k].getPointAtLength(d - cum[k]);
+}
+function place(d) {
+  circles.forEach((c, j) => { const p = pt(d - (S-j)*GAP); c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); });
+  const p = pt(d), q = pt(d + 2), r = pt(d - 2);
+  const ang = Math.atan2(q.y - r.y, q.x - r.x) * 180 / Math.PI;
+  head.setAttribute('transform', `translate(${p.x} ${p.y}) rotate(${ang})`);
+  const w = $('#wrap'), x = p.x / 1000 * $('#map').clientWidth;
+  w.scrollLeft = x - w.clientWidth / 2;
+}
+function updateMap(skipAnim) {
+  for (let i = 0; i < N; i++) $('#n'+i).setAttribute('class', 'node ' + (i < st.lvl ? 'done' : i === st.lvl ? 'cur' : 'lock'));
+  segs.forEach((s, i) => { s.setAttribute('stroke', i < st.lvl ? '#3776ab' : '#2a3142'); s.setAttribute('stroke-dasharray', i < st.lvl ? '' : '2 11'); });
+  const done = st.lvl >= LEVELS.length;
+  $('#prog').textContent = `Пройдено рівнів: ${Math.min(st.lvl, LEVELS.length)} з ${LEVELS.length}`;
+  $('#go').textContent = done ? 'Показати результат' : `Почати рівень ${st.lvl+1}: ${LEVELS[st.lvl].t}`;
+  $('#go').disabled = st.busy;
+}
+function moveSnake(cb) {
+  const from = D, to = cum[st.lvl], dur = reduce ? 1 : 1500, t0 = performance.now();
+  st.busy = true; $('#go').disabled = true;
+  (function f(t) {
+    const k = Math.min(1, (t - t0) / dur), e = k < .5 ? 2*k*k : 1 - Math.pow(-2*k + 2, 2) / 2;
+    D = from + (to - from) * e; place(D);
+    if (k < 1) requestAnimationFrame(f); else { st.busy = false; updateMap(); cb && cb(); }
+  })(t0);
+}
+$('#go').addEventListener('click', () => st.lvl >= LEVELS.length ? showReport() : openQuiz());
+
+/* ============ ВІКНО ЗАВДАНЬ ============ */
+function openQuiz() { st.qi = 0; st.res[st.lvl] = []; $('#modal').classList.remove('hidden'); renderQ(); }
+function renderQ() {
+  const L = LEVELS[st.lvl], Q = L.q[st.qi];
+  const bars = L.q.map((_, i) => `<span class="h-1.5 flex-1 rounded ${i < st.qi ? (st.res[st.lvl][i] ? 'bg-[#3fb950]' : 'bg-[#f85149]') : i === st.qi ? 'bg-[#ffd43b]' : 'bg-white/10'}"></span>`).join('');
+  $('#mbox').innerHTML = `
+    <div class="flex items-center justify-between text-sm text-slate-400 mb-2"><span>Рівень ${st.lvl+1}: ${esc(L.t)}</span><span>${st.qi+1} з ${L.q.length}</span></div>
+    <div class="flex gap-1 mb-4">${bars}</div>
+    <h3 class="text-lg font-semibold mb-3">${esc(Q.q)}</h3>
+    <div id="body"></div>
+    <div id="fb" class="mt-4 hidden"></div>`;
+  ({quiz:rQuiz, drag:rDrag, type:rType, bug:rBug})[Q.k || 'quiz'](Q, $('#body'));
+}
+function feedback(ok, text, extra) {
+  const L = LEVELS[st.lvl], last = st.qi === L.q.length - 1;
+  st.res[st.lvl][st.qi] = ok;
+  $('#fb').classList.remove('hidden');
+  $('#fb').innerHTML = `<p class="${ok ? 'text-[#3fb950]' : 'text-[#f85149]'} font-semibold">${ok ? 'Вірно!' : 'Не зовсім.'}</p>
+    <p class="text-slate-300 text-sm mt-1">${esc(text)}</p>
+    ${extra && !ok ? '<p class="text-xs text-slate-500 mt-3">Правильна відповідь:</p><pre class="code mt-1" id="ex"></pre>' : ''}
+    <button id="nx" class="btn btn-main mt-4">${last ? 'Завершити рівень' : 'Далі'}</button>`;
+  if (extra && !ok) $('#ex').textContent = extra;
+  $('#nx').focus();
+  $('#nx').onclick = () => { if (last) levelDone(); else { st.qi++; renderQ(); } };
+}
+function choices(box, list, cb) {
+  list.map((_, i) => i).sort(() => Math.random() - .5).forEach(i => {
+    const b = document.createElement('button'); b.className = 'opt'; b.textContent = list[i];
+    b.onclick = () => {
+      box.querySelectorAll('.opt').forEach(x => { x.disabled = true; if (x.textContent === list[0]) x.classList.add('ok'); });
+      if (i) b.classList.add('bad');
+      cb(i === 0);
+    };
+    box.appendChild(b);
+  });
+}
+function rQuiz(Q, body) {
+  if (Q.c) { const p = document.createElement('pre'); p.className = 'code mb-3'; p.textContent = Q.c; body.appendChild(p); }
+  const box = document.createElement('div'); box.className = 'space-y-2'; body.appendChild(box);
+  choices(box, Q.o, ok => feedback(ok, Q.e));
+}
+function rDrag(Q, body) {
+  let slots = Q.f.map(() => null), bank = Q.f.map((_, i) => i).sort(() => Math.random() - .5), locked = false;
+  const put = (i, s) => {
+    if (!(i >= 0 && i < Q.f.length)) return;
+    const from = slots.indexOf(i);
+    if (from >= 0) slots[from] = null; else bank = bank.filter(x => x !== i);
+    if (s >= 0) { const o = slots[s]; slots[s] = i; if (o !== null) { if (from >= 0) slots[from] = o; else bank.push(o); } }
+    else bank.push(i);
+    draw();
+  };
+  const chip = v => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = Q.f[v];
+    b.draggable = !locked; b.disabled = locked;
+    b.ondragstart = e => e.dataTransfer.setData('text', v);
+    b.onclick = () => put(v, slots.indexOf(v) >= 0 ? -1 : slots.indexOf(null));
+    return b;
+  };
+  const draw = () => {
+    body.innerHTML = `<p class="text-sm text-slate-400 mb-2">Перетягни рядки на місця або торкайся їх по черзі.</p>
+      <div class="space-y-1.5" id="sl"></div>
+      <div id="bk" class="flex flex-wrap gap-2 mt-3 min-h-[2.75rem] p-2 rounded-lg border border-white/10"></div>
+      <button id="chk" class="btn btn-main mt-4">Перевірити</button>`;
+    const sl = body.querySelector('#sl'), bk = body.querySelector('#bk'), chk = body.querySelector('#chk');
+    slots.forEach((v, s) => {
+      const r = document.createElement('div'); r.className = 'flex items-center gap-2';
+      r.innerHTML = `<span class="w-5 text-right text-sm text-slate-500">${s+1}</span><div class="slot flex-1 min-h-[2.6rem]"></div>`;
+      const z = r.lastChild;
+      z.ondragover = e => e.preventDefault();
+      z.ondrop = e => { e.preventDefault(); put(parseInt(e.dataTransfer.getData('text')), s); };
+      if (v !== null) z.appendChild(chip(v));
+      sl.appendChild(r);
+    });
+    bank.forEach(v => bk.appendChild(chip(v)));
+    bk.ondragover = e => e.preventDefault();
+    bk.ondrop = e => { e.preventDefault(); put(parseInt(e.dataTransfer.getData('text')), -1); };
+    chk.hidden = locked; chk.disabled = slots.includes(null);
+    chk.onclick = () => { locked = true; const ok = slots.every((v, s) => v === s); draw(); feedback(ok, Q.e, Q.f.join('\n')); };
+  };
+  draw();
+}
+function rType(Q, body) {
+  body.innerHTML = `<pre class="code mb-3" id="qc"></pre>
+    <input id="ans" class="field font-mono" placeholder="Заміни ___ своїм кодом" autocomplete="off" spellcheck="false">
+    <button id="chk" class="btn btn-main mt-3">Перевірити</button>`;
+  body.querySelector('#qc').textContent = Q.c;
+  const ans = body.querySelector('#ans'), chk = body.querySelector('#chk');
+  ans.focus();
+  ans.onkeydown = e => { if (e.key === 'Enter') chk.click(); };
+  chk.onclick = () => {
+    if (!ans.value.trim()) return;
+    ans.disabled = true; chk.hidden = true;
+    feedback(Q.re.test(ans.value.replace(/\s+/g, '')), Q.e, Q.a);
+  };
+}
+function rBug(Q, body) {
+  body.innerHTML = `<p class="text-sm text-slate-400 mb-2">Клікни на рядок, у якому помилка.</p>
+    <div class="code p-0 overflow-hidden" id="ln"></div><div id="st2"></div>`;
+  const box = body.querySelector('#ln'), btns = [];
+  Q.c.forEach((t, i) => {
+    const b = document.createElement('button'); b.className = 'ln';
+    b.innerHTML = `<span class="n">${i+1}</span><span></span>`; b.lastChild.textContent = t;
+    b.onclick = () => {
+      btns.forEach(x => x.disabled = true);
+      if (i !== Q.b) { b.classList.add('bad'); btns[Q.b].classList.add('ok'); feedback(false, Q.e, Q.f[0]); return; }
+      b.classList.add('ok');
+      const s2 = body.querySelector('#st2');
+      s2.innerHTML = `<p class="text-sm text-slate-400 mt-4 mb-2">Як виправити рядок ${Q.b+1}?</p><div class="space-y-2" id="fx"></div>`;
+      choices(s2.querySelector('#fx'), Q.f, ok => feedback(ok, Q.e, Q.f[0]));
+    };
+    btns.push(b); box.appendChild(b);
+  });
+}
+function levelDone() {
+  const r = st.res[st.lvl], s = r.filter(Boolean).length, all = s === r.length;
+  $('#mbox').innerHTML = `
+    <h3 class="text-xl font-bold">Рівень ${st.lvl+1} пройдено</h3>
+    <p class="text-slate-300 mt-2">Результат: ${s} з ${r.length}. ${all ? 'Без жодної помилки!' : 'Помилки не страшні — вони покажуть, що повторити.'}</p>
+    <button id="mv" class="btn btn-main mt-5">Змійко, вперед!</button>`;
+  $('#mv').focus();
+  $('#mv').onclick = () => {
+    $('#modal').classList.add('hidden');
+    st.lvl++; updateMap();
+    moveSnake(() => { if (st.lvl >= LEVELS.length) setTimeout(showReport, 700); });
+  };
+}
+
+/* ============ ЗВІТ ============ */
+function stats() {
+  const per = LEVELS.map((L, i) => ({t:L.t, s:(st.res[i]||[]).filter(Boolean).length, n:L.q.length}));
+  const s = per.reduce((a, x) => a + x.s, 0), n = per.reduce((a, x) => a + x.n, 0);
+  return {per, s, n, grade: Math.max(1, Math.round(s / n * 12))};
+}
+function reportText() {
+  const {per, s, n, grade} = stats();
+  const weak = per.filter(x => x.s < x.n).map(x => x.t);
+  return `Python-змійка · ${st.ln} ${st.fn}, ${st.cl}\nДата: ${new Date().toLocaleDateString('uk-UA')}\nРезультат: ${s} з ${n}, орієнтовна оцінка ${grade}/12\n\n` +
+    per.map((x, i) => `${i+1}. ${x.t}: ${x.s}/${x.n}`).join('\n') +
+    `\n\nПовторити: ${weak.length ? weak.join(', ') : 'усе засвоєно'}`;
+}
+function showReport() {
+  const {per, s, n, grade} = stats();
+  const weak = per.filter(x => x.s < x.n);
+  show('s-report');
+  $('#s-report').innerHTML = `
+    <h2 class="text-2xl font-bold">Ти дістався до фінішу</h2>
+    <p class="text-slate-400 mt-1">${esc(st.ln)} ${esc(st.fn)} · ${esc(st.cl)} · ${new Date().toLocaleDateString('uk-UA')}</p>
+    <div class="card mt-5">
+      <p class="text-lg">Правильних відповідей: <b>${s} з ${n}</b></p>
+      <p class="text-slate-400 text-sm">Орієнтовна оцінка: ${grade} із 12. Остаточну оцінку виставляє вчитель.</p>
+      <div class="mt-4 space-y-3">${per.map(x => `
+        <div><div class="flex justify-between text-sm"><span>${esc(x.t)}</span><span class="text-slate-400">${x.s}/${x.n}</span></div>
+        <div class="h-2 rounded bg-white/10 mt-1"><div class="h-2 rounded ${x.s === x.n ? 'bg-[#3fb950]' : 'bg-[#ffd43b]'}" style="width:${x.s / x.n * 100}%"></div></div></div>`).join('')}
+      </div>
+    </div>
+    <div class="card mt-4"><p class="font-semibold">${weak.length ? 'Що варто повторити' : 'Чудовий результат'}</p>
+      <p class="text-slate-300 text-sm mt-1">${weak.length ? weak.map(x => esc(x.t)).join(', ') + '. Перегляй конспект і пробуй ці теми в коді.' : 'Усі теми засвоєно. Спробуй написати власне вікно в Tkinter з кнопкою.'}</p></div>
+    <div class="flex flex-wrap gap-3 mt-5">
+      <a id="mail" class="btn btn-main" href="#">Надіслати вчителю</a>
+      <button id="copy" class="btn">Скопіювати звіт</button>
+      <button id="again" class="btn">Пройти ще раз</button>
+    </div>`;
+  $('#mail').href = `mailto:${TEACHER_EMAIL}?subject=${encodeURIComponent('Python-змійка: ' + st.ln + ' ' + st.fn + ', ' + st.cl)}&body=${encodeURIComponent(reportText())}`;
+  $('#copy').onclick = () => { navigator.clipboard && navigator.clipboard.writeText(reportText()); $('#copy').textContent = 'Скопійовано'; };
+  $('#again').onclick = () => { $('#fn').value = st.fn; $('#ln').value = st.ln; $('#cl').value = st.cl; preview(); show('s-start'); };
+}
+</script>
+</body>
+</html>
