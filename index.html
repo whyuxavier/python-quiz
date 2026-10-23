@@ -33,6 +33,11 @@
   .ln .n { color:#6b7689; width:1rem; text-align:right; flex:none; }
   .ln.ok { background:#1b3a2a; } .ln.bad { background:#3d1d22; }
   .seg { fill:none; stroke-width:5; stroke-linecap:round; }
+  .snake-shadow { fill:#05070b; opacity:.35; filter:blur(2px); }
+  .snake-scale { fill:#3fb950; opacity:.7; }
+  .snake-eye { fill:#0d1117; stroke:#fff4a3; stroke-width:1.2; }
+  .snake-pupil { fill:#111827; }
+  .snake-highlight { fill:none; stroke:#fff8c9; stroke-width:2.2; stroke-linecap:round; opacity:.7; }
   .node .base { fill:#151a26; stroke:#2f384d; stroke-width:3; transition:.3s; }
   .node.done .base { fill:#3776ab; stroke:#3776ab; }
   .node.cur .base { stroke:#ffd43b; }
@@ -110,6 +115,8 @@ const LEVELS = [
   {q:'Що виведе програма?', c:'print(type("5"))', o:["<class 'str'>","<class 'int'>",'5','Помилка'], e:'"5" у лапках — це текст, тобто str.'}]},
  {t:'Tkinter: вікно', q:[
   {q:'Як підключити бібліотеку для створення вікон?', o:['import tkinter','include tkinter','using tkinter','get tkinter'], e:'Бібліотеки в Python підключають командою import.'},
+  {q:'Що робить рядок root.title("Моє вікно")?', c:'root.title("Моє вікно")', o:['Задає текст у заголовку вікна','Створює кнопку з текстом «Моє вікно»','Змінює колір вікна','Закриває вікно'], e:'Метод title() встановлює напис у верхній частині вікна — його заголовок.'},
+  {q:'Знайди помилку в коді, який має встановити розмір вікна.', c:'root.geometry(600x400)', o:['Потрібні лапки: root.geometry("600x400")','Потрібно написати root.size(600, 400)','Потрібно замінити x на +','Помилки немає'], e:'Розмір у geometry() передається як текст у лапках: ширина, символ x, висота.'},
   {q:'Що робить рядок у кінці програми?', c:'root.mainloop()', o:['Запускає вікно й тримає його відкритим, поки користувач не закриє','Закриває вікно','Створює нове вікно','Повторює програму 10 разів'], e:'mainloop() запускає цикл очікування подій: натискань, введення, закриття вікна.'}]},
  {t:'Tkinter: віджети', q:[
   {q:'Який віджет показує у вікні напис?', o:['Label','Button','Entry','Frame'], e:'Label — напис, Button — кнопка, Entry — поле введення.'},
@@ -125,15 +132,41 @@ const LEVELS = [
  {t:'Знайди помилку', q:[
   {k:'bug', q:'Програма має привітати користувача, але падає з помилкою.', c:[`name = input("Ім'я: ")`, `print("Привіт, " + nam)`], b:1, f:[`print("Привіт, " + name)`, `print("Привіт, " + "name")`, `Print("Привіт, " + name)`], e:'У другому рядку змінну названо nam, а створено name. Імена мають збігатися.'},
   {k:'bug', q:'Програма має додати 1 до віку, але виникає помилка.', c:[`age = input("Вік: ")`, `next_year = age + 1`, `print(next_year)`], b:1, f:[`next_year = int(age) + 1`, `next_year = age + "1"`, `next_year = str(age) + 1`], e:'age — рядок, а до рядка не можна додати число. Спершу перетворюємо його через int().'},
-  {k:'bug', q:'Вікно з кнопкою не з’являється. Знайди помилку.', c:[`import tkinter`, `root = tkinter.Tk()`, `btn = tkinter.Button(root, text="OK")`, `btn.pack()`, `root.mainloop`], b:4, f:[`root.mainloop()`, `root.mainloop(0)`, `root.main()`], e:'Без дужок Python лише називає функцію, але не викликає її, тому вікно не відкривається.'}]}
+  {k:'bug', q:'Вікно з кнопкою не з’являється. Знайди помилку.', c:[`from tkinter import Tk, Button`, `root = Tk()`, `btn = Button(root, text="OK")`, `btn.pack()`, `root.mainloop`], b:4, f:[`root.mainloop()`, `root.mainloop(0)`, `root.main()`], e:'Без дужок Python лише називає функцію, але не викликає її, тому вікно не відкривається.'}]}
 ];
 
 /* ============ СТАН ============ */
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const st = {fn:'', ln:'', cl:'', lvl:0, qi:0, res:[], busy:false, finished:false};
+const st = {fn:'', ln:'', cl:'', lvl:0, qi:0, res:[], busy:false, finished:false, openLevel:false};
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const STORAGE_KEY = 'python-quest-progress-v1';
 const show = id => ['s-start','s-map','s-report'].forEach(s => $('#'+s).classList.toggle('hidden', s !== id));
+
+function saveProgress() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      fn:st.fn, ln:st.ln, cl:st.cl, lvl:st.lvl, qi:st.qi,
+      res:st.res, openLevel:st.openLevel
+    }));
+  } catch (_) { /* Квест працюватиме й без доступу до пам’яті браузера. */ }
+}
+function restoreProgress() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (!saved || ![saved.fn, saved.ln, saved.cl].every(x => typeof x === 'string' && x.trim())) return;
+    const lvl = Math.max(0, Math.min(LEVELS.length, Number(saved.lvl) || 0));
+    Object.assign(st, {
+      fn:saved.fn, ln:saved.ln, cl:saved.cl, lvl,
+      qi:lvl < LEVELS.length ? Math.max(0, Math.min(LEVELS[lvl].q.length - 1, Number(saved.qi) || 0)) : 0,
+      res:LEVELS.map((_, i) => Array.isArray(saved.res?.[i]) ? saved.res[i].map(Boolean) : []),
+      openLevel:Boolean(saved.openLevel) && lvl < LEVELS.length
+    });
+    $('#who').textContent = `${st.ln} ${st.fn} · ${st.cl}`;
+    if (st.lvl >= LEVELS.length) showReport();
+    else { show('s-map'); buildMap(); updateMap(true); }
+  } catch (_) { /* Пошкоджені або застарілі дані ігноруються. */ }
+}
 
 /* ============ СТАРТ ============ */
 function preview() {
@@ -146,9 +179,9 @@ $('#form').addEventListener('submit', e => {
   e.preventDefault();
   const v = i => $('#'+i).value.trim();
   if (!v('fn') || !v('ln') || !v('cl')) { $('#err').classList.remove('hidden'); return; }
-  Object.assign(st, {fn:v('fn'), ln:v('ln'), cl:v('cl'), lvl:0, qi:0, res:LEVELS.map(() => []), finished:false});
+  Object.assign(st, {fn:v('fn'), ln:v('ln'), cl:v('cl'), lvl:0, qi:0, res:LEVELS.map(() => []), finished:false, openLevel:false});
   $('#who').textContent = `${st.ln} ${st.fn} · ${st.cl}`;
-  show('s-map'); buildMap(); updateMap(true);
+  saveProgress(); show('s-map'); buildMap(); updateMap(true);
 });
 
 /* ============ КАРТА ТА ЗМІЙКА ============ */
@@ -175,11 +208,15 @@ function buildMap() {
   segs = [...Array(N-1).keys()].map(i => $('#seg'+i));
   cum = [0]; segs.forEach(s => cum.push(cum[cum.length-1] + s.getTotalLength()));
   let sn = '';
-  for (let i = S; i >= 1; i--) sn += `<circle r="${(5 + (S-i)*.35).toFixed(1)}" fill="${mix(1 - i/(S+1))}"/>`;
-  sn += `<g id="head"><circle r="12" fill="#ffd43b"/><circle cx="4" cy="-5" r="2.6" fill="#0d1117"/><circle cx="4" cy="5" r="2.6" fill="#0d1117"/>
-         <path d="M11 0h8m0 0l4-3m-4 3l4 3" stroke="#f85149" stroke-width="1.8" fill="none" stroke-linecap="round"/></g>`;
+  for (let i = S; i >= 1; i--) {
+    const r = (5 + (S-i)*.35).toFixed(1);
+    sn += `<g class="snake-segment"><circle class="snake-shadow" r="${r}" cy="4"/><circle r="${r}" fill="#3fb950" stroke="#2d8c46" stroke-width=".8"/><circle class="snake-scale" r="${Math.max(1.5, r*.22).toFixed(1)}" cx="-1.5" cy="-1.5"/></g>`;
+  }
+  sn += `<g id="head"><ellipse rx="15" ry="12" fill="#3fb950" stroke="#2d8c46" stroke-width="1.1"/>
+         <circle class="snake-eye" cx="5" cy="-5" r="3.3"/><circle class="snake-pupil" cx="5.8" cy="-5" r="1.25"/><circle class="snake-eye" cx="5" cy="5" r="3.3"/><circle class="snake-pupil" cx="5.8" cy="5" r="1.25"/>
+         <path d="M14 0h8m0 0l4-3m-4 3l4 3" stroke="#f85149" stroke-width="1.8" fill="none" stroke-linecap="round"/></g>`;
   $('#snake').innerHTML = sn;
-  circles = [...$('#snake').querySelectorAll('circle')].slice(0, S);
+  circles = [...$('#snake').querySelectorAll('.snake-segment')];
   head = $('#head');
   D = cum[st.lvl]; place(D);
 }
@@ -189,7 +226,7 @@ function pt(d) {
   return segs[k].getPointAtLength(d - cum[k]);
 }
 function place(d) {
-  circles.forEach((c, j) => { const p = pt(d - (S-j)*GAP); c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); });
+  circles.forEach((c, j) => { const p = pt(d - (S-j)*GAP); c.setAttribute('transform', `translate(${p.x} ${p.y})`); });
   const p = pt(d), q = pt(d + 2), r = pt(d - 2);
   const ang = Math.atan2(q.y - r.y, q.x - r.x) * 180 / Math.PI;
   head.setAttribute('transform', `translate(${p.x} ${p.y}) rotate(${ang})`);
@@ -201,7 +238,7 @@ function updateMap(skipAnim) {
   segs.forEach((s, i) => { s.setAttribute('stroke', i < st.lvl ? '#3776ab' : '#2a3142'); s.setAttribute('stroke-dasharray', i < st.lvl ? '' : '2 11'); });
   const done = st.lvl >= LEVELS.length;
   $('#prog').textContent = `Пройдено рівнів: ${Math.min(st.lvl, LEVELS.length)} з ${LEVELS.length}`;
-  $('#go').textContent = done ? 'Показати результат' : `Почати рівень ${st.lvl+1}: ${LEVELS[st.lvl].t}`;
+  $('#go').textContent = done ? 'Показати результат' : `${st.openLevel ? 'Продовжити' : 'Почати'} рівень ${st.lvl+1}: ${LEVELS[st.lvl].t}`;
   $('#go').disabled = st.busy;
 }
 function moveSnake(cb) {
@@ -216,21 +253,26 @@ function moveSnake(cb) {
 $('#go').addEventListener('click', () => st.lvl >= LEVELS.length ? showReport() : openQuiz());
 
 /* ============ ВІКНО ЗАВДАНЬ ============ */
-function openQuiz() { st.qi = 0; st.res[st.lvl] = []; $('#modal').classList.remove('hidden'); renderQ(); }
+function openQuiz() {
+  if (!st.openLevel) { st.qi = 0; st.res[st.lvl] = []; st.openLevel = true; saveProgress(); }
+  $('#modal').classList.remove('hidden'); renderQ();
+}
 function renderQ() {
   const L = LEVELS[st.lvl], Q = L.q[st.qi];
   const bars = L.q.map((_, i) => `<span class="h-1.5 flex-1 rounded ${i < st.qi ? (st.res[st.lvl][i] ? 'bg-[#3fb950]' : 'bg-[#f85149]') : i === st.qi ? 'bg-[#ffd43b]' : 'bg-white/10'}"></span>`).join('');
   $('#mbox').innerHTML = `
-    <div class="flex items-center justify-between text-sm text-slate-400 mb-2"><span>Рівень ${st.lvl+1}: ${esc(L.t)}</span><span>${st.qi+1} з ${L.q.length}</span></div>
+    <div class="flex items-center justify-between gap-3 text-sm text-slate-400 mb-2"><span>Рівень ${st.lvl+1}: ${esc(L.t)}</span><div class="flex items-center gap-3 shrink-0"><span>${st.qi+1} з ${L.q.length}</span><button id="close-level" type="button" class="text-slate-300 hover:text-[#ffd43b]">Закрити</button></div></div>
     <div class="flex gap-1 mb-4">${bars}</div>
     <h3 class="text-lg font-semibold mb-3">${esc(Q.q)}</h3>
     <div id="body"></div>
     <div id="fb" class="mt-4 hidden"></div>`;
+  $('#close-level').onclick = () => { $('#modal').classList.add('hidden'); updateMap(); };
   ({quiz:rQuiz, drag:rDrag, type:rType, bug:rBug})[Q.k || 'quiz'](Q, $('#body'));
 }
 function feedback(ok, text, extra) {
   const L = LEVELS[st.lvl], last = st.qi === L.q.length - 1;
   st.res[st.lvl][st.qi] = ok;
+  saveProgress();
   $('#fb').classList.remove('hidden');
   $('#fb').innerHTML = `<p class="${ok ? 'text-[#3fb950]' : 'text-[#f85149]'} font-semibold">${ok ? 'Вірно!' : 'Не зовсім.'}</p>
     <p class="text-slate-300 text-sm mt-1">${esc(text)}</p>
@@ -238,7 +280,7 @@ function feedback(ok, text, extra) {
     <button id="nx" class="btn btn-main mt-4">${last ? 'Завершити рівень' : 'Далі'}</button>`;
   if (extra && !ok) $('#ex').textContent = extra;
   $('#nx').focus();
-  $('#nx').onclick = () => { if (last) levelDone(); else { st.qi++; renderQ(); } };
+  $('#nx').onclick = () => { if (last) levelDone(); else { st.qi++; saveProgress(); renderQ(); } };
 }
 function choices(box, list, cb) {
   list.map((_, i) => i).sort(() => Math.random() - .5).forEach(i => {
@@ -337,7 +379,7 @@ function levelDone() {
   $('#mv').focus();
   $('#mv').onclick = () => {
     $('#modal').classList.add('hidden');
-    st.lvl++; updateMap();
+    st.lvl++; st.openLevel = false; st.qi = 0; saveProgress(); updateMap();
     moveSnake(() => { if (st.lvl >= LEVELS.length) setTimeout(showReport, 700); });
   };
 }
@@ -379,8 +421,9 @@ function showReport() {
     </div>`;
   $('#mail').href = `mailto:${TEACHER_EMAIL}?subject=${encodeURIComponent('Python-змійка: ' + st.ln + ' ' + st.fn + ', ' + st.cl)}&body=${encodeURIComponent(reportText())}`;
   $('#copy').onclick = () => { navigator.clipboard && navigator.clipboard.writeText(reportText()); $('#copy').textContent = 'Скопійовано'; };
-  $('#again').onclick = () => { $('#fn').value = st.fn; $('#ln').value = st.ln; $('#cl').value = st.cl; preview(); show('s-start'); };
+  $('#again').onclick = () => { localStorage.removeItem(STORAGE_KEY); $('#fn').value = st.fn; $('#ln').value = st.ln; $('#cl').value = st.cl; preview(); show('s-start'); };
 }
+restoreProgress();
 </script>
 </body>
 </html>
